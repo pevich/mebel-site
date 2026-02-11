@@ -1,0 +1,119 @@
+{
+  "brand": {
+    "name": "ATELIER",
+    "tagline": "Premium Furniture Studio",
+    "currency": "грн",
+    "globalMarkupPercent": 20
+  },
+  "products": [
+    {
+      "id": "p1770838311843",
+      "slug": "стіл-крутий-горішок",
+      "category": "table",
+      "name": "Стіл крутий горішок",
+      "description": "",
+      "basePrice": 2026,
+      "discountPercent": 15,
+      "availability": "pre",
+      "sizes": [
+        "50x100"
+      ],
+      "colors": [
+        "Графіт",
+        "Беж"
+      ],
+      "materials": [
+        "дерево"
+      ],
+      "photos": [
+        "https://images.prom.ua/6857187332_6857187332.jpg"
+      ],
+      "featured": false
+    },
+    {
+      "id": "p1770837678708",
+      "slug": "стіл",
+      "category": "sofa",
+      "name": "Стіл",
+      "description": ",,,,,,,,",
+      "basePrice": 0,
+      "discountPercent": 0,
+      "availability": "in",
+      "sizes": [
+        "S",
+        "M",
+        "L"
+      ],
+      "colors": [
+        "Дубовий"
+      ],
+      "materials": [
+        "Bouclé"
+      ],
+      "photos": [
+        "https://m-loft.com/content/images/18/78x78l80nn0/97249237831206.webp",
+        "https://m-loft.com/content/images/18/78x58l80nn0/66124522305343.webp"
+      ],
+      "featured": false
+    },
+    {
+      "id": "p1001",
+      "slug": "sable-cloud-sofa",
+      "category": "sofa",
+      "name": "Sable Cloud Sofa",
+      "description": "Глибока посадка, мʼякі контури та фактурна bouclé. Візуально — luxury, по відчуттях — відпустка.",
+      "basePrice": 32900,
+      "discountPercent": 12,
+      "availability": "in",
+      "sizes": [
+        "S",
+        "M",
+        "L"
+      ],
+      "colors": [
+        "Графіт",
+        "Беж",
+        "Молочний"
+      ],
+      "materials": [
+        "Bouclé",
+        "Велюр"
+      ],
+      "photos": [
+        "https://images.unsplash.com/photo-1505691938895-1758d7feb511?auto=format&fit=crop&w=1600&q=80",
+        "https://images.unsplash.com/photo-1549497538-303791108f95?auto=format&fit=crop&w=1600&q=80",
+        "https://images.unsplash.com/photo-1524758631624-e2822e304c36?auto=format&fit=crop&w=1600&q=80"
+      ],
+      "featured": true
+    },
+    {
+      "id": "p1002",
+      "slug": "noir-atelier-table",
+      "category": "table",
+      "name": "Noir Atelier Table",
+      "description": "Преміальна геометрія та текстура натурального дерева. Стіл, який робить інтерʼєр дорожчим.",
+      "basePrice": 21900,
+      "discountPercent": 0,
+      "availability": "pre",
+      "sizes": [
+        "140×80",
+        "160×90",
+        "200×95"
+      ],
+      "colors": [
+        "Горіх",
+        "Дуб",
+        "Чорний"
+      ],
+      "materials": [
+        "Дерево",
+        "МДФ premium"
+      ],
+      "photos": [
+        "https://images.unsplash.com/photo-1616628182507-9b6c1f4f8f08?auto=format&fit=crop&w=1600&q=80",
+        "https://images.unsplash.com/photo-1616627453411-3f3a0f9b0f2a?auto=format&fit=crop&w=1600&q=80"
+      ],
+      "featured": false
+    }
+  ]
+}
