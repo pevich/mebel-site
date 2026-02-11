@@ -10,6 +10,7 @@ const app = express();
 app.use(express.json({ limit: "15mb" }));
 
 const PORT = Number(process.env.PORT || 3000);
+console.log("BOOT:", { PORT });
 const TOKEN = (process.env.BOT_TOKEN || "").trim();
 const CHAT = (process.env.CHAT_ID || "").trim();
 const ADMIN_PASS = (process.env.ADMIN_PASS || "").trim();
