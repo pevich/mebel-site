@@ -6,16 +6,25 @@ import crypto from "crypto";
 
 dotenv.config();
 
+// ---- Crash diagnostics (Render)
+process.on("uncaughtException", (err) => {
+  console.error("UNCAUGHT_EXCEPTION:", err);
+});
+process.on("unhandledRejection", (reason) => {
+  console.error("UNHANDLED_REJECTION:", reason);
+});
+
 const app = express();
 app.use(express.json({ limit: "15mb" }));
 
 const PORT = Number(process.env.PORT || 3000);
 console.log("BOOT:", { PORT });
+
 const TOKEN = (process.env.BOT_TOKEN || "").trim();
 const CHAT = (process.env.CHAT_ID || "").trim();
 const ADMIN_PASS = (process.env.ADMIN_PASS || "").trim();
 
-const ROOT = process.cwd();                   // .../server (на Render буде так, якщо старт: node server/server.js)
+const ROOT = process.cwd();                    // якщо старт: node server/server.js → ROOT = .../server
 const PROJECT_ROOT = path.resolve(ROOT, ".."); // корінь репо
 
 const DATA_DIR = path.join(ROOT, "data");
@@ -23,7 +32,7 @@ const DB_PATH = path.join(DATA_DIR, "catalog.json");
 const PUBLIC_DIR = path.join(ROOT, "public");
 const UPLOAD_DIR = path.join(PUBLIC_DIR, "uploads");
 
-// ✅ Папка з білдом фронта (створюється командою: npm run build --prefix client)
+// client build output
 const CLIENT_DIST = path.join(PROJECT_ROOT, "client", "dist");
 
 app.use("/uploads", express.static(UPLOAD_DIR));
@@ -36,7 +45,10 @@ async function ensureDirs() {
   try {
     await fs.access(DB_PATH);
   } catch {
-    const seed = { brand: { currency: "грн", globalMarkupPercent: 0 }, products: [] };
+    const seed = {
+      brand: { currency: "грн", globalMarkupPercent: 0 },
+      products: []
+    };
     await fs.writeFile(DB_PATH, JSON.stringify(seed, null, 2), "utf8");
   }
 }
@@ -71,7 +83,7 @@ async function tgSend(text) {
       chat_id: CHAT,
       text,
       disable_web_page_preview: true
-      // ❗ не ставимо parse_mode, щоб не ламалось на символах
+      // parse_mode НЕ ставимо (щоб не ламалось на спецсимволах)
     })
   });
 
@@ -89,7 +101,13 @@ function calcFinal(base, discountPercent, markupPercent) {
 }
 
 // -------------------- API --------------------
-app.get("/api/health", (req, res) => {
+app.get("/api/health", async (req, res) => {
+  let hasClientDist = false;
+  try {
+    await fs.access(path.join(CLIENT_DIST, "index.html"));
+    hasClientDist = true;
+  } catch {}
+
   res.json({
     ok: true,
     port: PORT,
@@ -97,7 +115,7 @@ app.get("/api/health", (req, res) => {
     botTokenStarts: TOKEN ? TOKEN.slice(0, 12) : "",
     chatId: CHAT || "",
     hasAdminPass: Boolean(ADMIN_PASS),
-    hasClientDist: false // оновимо нижче після перевірки
+    hasClientDist
   });
 });
 
@@ -117,9 +135,10 @@ app.get("/api/catalog", async (req, res) => {
 
   const out = {
     ...db,
-    products: (db.products || []).map(p => {
+    products: (db.products || []).map((p) => {
       const priceFinal = calcFinal(p.basePrice, p.discountPercent, markup);
 
+      // ціна по розмірах (basePriceBySize)
       const basePriceBySize =
         (p.basePriceBySize && typeof p.basePriceBySize === "object")
           ? p.basePriceBySize
@@ -157,3 +176,128 @@ app.get("/api/catalog", async (req, res) => {
 
   res.json(out);
 });
+
+// -------- Admin (protected) ----------
+app.get("/api/admin/catalog", async (req, res) => {
+  const guard = adminGuard(req, res);
+  if (guard) return;
+  const db = await readDB();
+  res.json(db);
+});
+
+app.post("/api/admin/catalog", async (req, res) => {
+  const guard = adminGuard(req, res);
+  if (guard) return;
+
+  const db = req.body;
+  if (!db || typeof db !== "object") return res.status(400).json({ ok: false, error: "bad_body" });
+  if (!Array.isArray(db.products)) return res.status(400).json({ ok: false, error: "products_required" });
+
+  await writeDB(db);
+  res.json({ ok: true });
+});
+
+// Upload base64 dataURL -> file in /public/uploads -> returns url
+app.post("/api/admin/upload", async (req, res) => {
+  const guard = adminGuard(req, res);
+  if (guard) return;
+
+  const dataUrl = String(req.body?.dataUrl || "");
+  if (!dataUrl.startsWith("data:image/")) return res.status(400).json({ ok: false, error: "invalid_dataUrl" });
+
+  const match = dataUrl.match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,(.+)$/);
+  if (!match) return res.status(400).json({ ok: false, error: "bad_dataUrl" });
+
+  const mime = match[1];
+  const b64 = match[2];
+
+  const ext = mime.includes("png") ? "png" : "jpg";
+  const name = `${Date.now()}-${crypto.randomBytes(6).toString("hex")}.${ext}`;
+  const filePath = path.join(UPLOAD_DIR, name);
+
+  const buf = Buffer.from(b64, "base64");
+  await fs.writeFile(filePath, buf);
+
+  res.json({ ok: true, url: `/uploads/${name}` });
+});
+
+// -------- Orders -> Telegram ----------
+app.post("/api/order", async (req, res) => {
+  try {
+    const body = req.body || {};
+    const customer = body.customer || {};
+    const items = Array.isArray(body.items) ? body.items : [];
+
+    const lines = [];
+    lines.push("🧾 Нове замовлення");
+    lines.push("");
+    lines.push(`👤 Імʼя: ${safe(customer.name || "-")}`);
+    lines.push(`📞 Телефон: ${safe(customer.phone || "-")}`);
+    lines.push(`🏙 Місто: ${safe(customer.city || "-")}`);
+    lines.push(`📦 НП: ${safe(customer.npBranch || "-")}`);
+    lines.push(`💳 Оплата: ${safe(customer.payment === "cod" ? "Накладений платіж" : "Картка")}`);
+    if (customer.comment) lines.push(`📝 Коментар: ${safe(customer.comment)}`);
+    lines.push("");
+    lines.push("🛒 Товари:");
+
+    let total = 0;
+    items.forEach((it, idx) => {
+      const qty = Math.max(1, Number(it.qty || 1));
+      const price = Number(it.price || 0);
+      const sum = qty * price;
+      total += sum;
+
+      lines.push(`${idx + 1}) ${safe(it.name || "Товар")}`);
+      lines.push(`   • Опції: ${safe(it.size)} / ${safe(it.color)} / ${safe(it.material)}`);
+      lines.push(`   • Наявність: ${safe(it.availability)}`);
+      lines.push(`   • ${price} грн × ${qty} = ${sum} грн`);
+    });
+
+    lines.push("");
+    lines.push(`💰 Разом: ${total} грн`);
+    if (body.siteUrl) {
+      lines.push("");
+      lines.push(`🔗 ${safe(body.siteUrl)}`);
+    }
+
+    await tgSend(lines.join("\n"));
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: "send_failed", message: String(e.message || e) });
+  }
+});
+
+// -------------------- Serve Frontend (client/dist) --------------------
+async function mountClient() {
+  try {
+    await fs.access(path.join(CLIENT_DIST, "index.html"));
+    console.log("✅ Serving client from:", CLIENT_DIST);
+
+    app.use(express.static(CLIENT_DIST));
+
+    // SPA fallback
+    app.get("*", async (req, res) => {
+      const html = await fs.readFile(path.join(CLIENT_DIST, "index.html"), "utf8");
+      res.setHeader("Content-Type", "text/html; charset=utf-8");
+      res.send(html);
+    });
+  } catch (e) {
+    console.log("⚠️ client/dist not found:", String(e?.message || e));
+    app.get("/", (req, res) => res.status(200).send("Client build not found. API is OK: /api/health"));
+  }
+}
+
+// -------------------- BOOT --------------------
+(async () => {
+  try {
+    await ensureDirs();
+    await mountClient();
+
+    app.listen(PORT, "0.0.0.0", () => {
+      console.log(`✅ Listening on ${PORT}`);
+    });
+  } catch (e) {
+    console.error("BOOT_FATAL:", e);
+    process.exit(1);
+  }
+})();
